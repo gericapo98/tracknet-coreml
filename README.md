@@ -6,7 +6,9 @@
 
 Run [TrackNetV3](https://github.com/qaz812345/TrackNetV3) shuttlecock/ball tracking
 on Apple Silicon. TrackNet ships as PyTorch/CUDA code and falls back to CPU on a Mac;
-this project converts it to Core ML so it runs on the Neural Engine.
+this project converts it to Core ML so it runs on the Neural Engine. Point it at any
+clip you have — `tracknet-track` writes the coordinates, `tracknet-overlay` renders
+them onto the video so you can watch the tracking.
 
 ## Quickstart
 
