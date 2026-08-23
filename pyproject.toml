@@ -5,6 +5,13 @@ description = "Core ML port of TrackNetV3 shuttlecock/ball tracking: converter, 
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Operating System :: MacOS",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+keywords = ["tracknet", "coreml", "apple-silicon", "neural-engine", "ball-tracking", "badminton"]
 dependencies = [
     "torch>=2.1",
     "numpy>=1.24",
