@@ -9,8 +9,9 @@ no Core ML or MLX port of TrackNetV3 exists. This project closes that gap in sta
 
 1. **MPS baseline** (done) — load any TrackNetV3-family checkpoint and benchmark it on
    CPU vs. the Apple GPU (`tracknet-bench`), establishing the number the port must beat.
-2. **Core ML conversion** — export the TrackNet U-Net (and the InpaintNet rectifier) to
-   fp16 `mlprogram` packages targeting the Neural Engine via coremltools.
+2. **Core ML conversion** (done) — `tracknet-convert` exports the TrackNet U-Net and the
+   InpaintNet rectifier to fp16 `mlprogram` packages targeting the Neural Engine, with a
+   built-in parity check against the fp32 PyTorch reference.
 3. **Inference API** — frames in → ball coordinates out, with the heatmap post-processing
    (threshold, centroid, optional rectification/ensembling) reimplemented host-side, plus
    parity tests against the PyTorch reference.
@@ -29,6 +30,10 @@ tracknet-bench --ckpt path/to/TrackNet_best.pt
 
 # no checkpoint handy? benchmark the architecture with random weights
 tracknet-bench --seq-len 8 --bg-mode concat
+
+# convert to Core ML (needs the [convert] extra)
+tracknet-convert --ckpt TrackNet_best.pt -o TrackNet.mlpackage
+tracknet-convert --ckpt InpaintNet_best.pt --kind inpaintnet -o InpaintNet.mlpackage
 ```
 
 ```python
@@ -43,16 +48,24 @@ TrackNetV3 badminton checkpoint (`seq_len=8`, `bg_mode='concat'`, 27→8 channel
 288×512), Apple M4 Pro, torch 2.12.1, batch 1 (the GPU is already saturated at batch 1;
 batches 4/8 measure the same):
 
-| device | precision | ms/pass | output frames/s |
-|--------|-----------|--------:|----------------:|
-| CPU    | fp32      |   177.5 |            45.1 |
-| MPS    | fp32      |    41.3 |           193.9 |
-| MPS    | fp16      |    36.2 |           221.3 |
+| backend | device | precision | ms/pass | output frames/s |
+|---------|--------|-----------|--------:|----------------:|
+| PyTorch | CPU    | fp32      |   177.5 |            45.1 |
+| PyTorch | MPS    | fp32      |    41.3 |           193.9 |
+| PyTorch | MPS    | fp16      |    36.2 |           221.3 |
+| Core ML | CPU only | fp16    |    43.3 |           184.8 |
+| Core ML | CPU+GPU  | fp16    |    31.5 |           253.6 |
+| Core ML | **CPU+ANE** | fp16 |  **14.4** |       **555.3** |
 
-fp16 on MPS is numerically safe for this model: against the fp32 CPU reference the
-max heatmap deviation is 6e-4 and the argmax (ball position) is identical on every
-output channel. Frames/s counts non-overlapping windows; upstream's optional 8×
-overlap ensembling divides these numbers by 8.
+The Neural Engine runs the network 2.5× faster than the Apple GPU and 12× faster than
+PyTorch on CPU — with upstream's optional 8× overlap ensembling enabled it still clears
+~69 fps, i.e. real-time even in max-accuracy mode. fp16 is numerically safe for this
+model: the converted TrackNet's max heatmap deviation vs. the fp32 reference is 3.4e-3
+and the argmax (ball position) is identical on every output channel. Frames/s counts
+non-overlapping windows; 8× ensembling divides these numbers by 8.
+
+Converted with coremltools 9.0. torch 2.13 triggers an "untested version" warning but
+converts and verifies cleanly; pin `torch<=2.7` if you hit converter issues.
 
 ## Attribution
 

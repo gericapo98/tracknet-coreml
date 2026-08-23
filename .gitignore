@@ -13,3 +13,4 @@ venv/
 *.mlmodelc/
 
 .DS_Store
+artifacts/
