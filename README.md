@@ -37,6 +37,23 @@ from tracknet_coreml import load_tracknet
 model, config = load_tracknet("TrackNet_best.pt")   # model.eval(), TrackNetConfig
 ```
 
+## Baseline results
+
+TrackNetV3 badminton checkpoint (`seq_len=8`, `bg_mode='concat'`, 27→8 channels at
+288×512), Apple M4 Pro, torch 2.12.1, batch 1 (the GPU is already saturated at batch 1;
+batches 4/8 measure the same):
+
+| device | precision | ms/pass | output frames/s |
+|--------|-----------|--------:|----------------:|
+| CPU    | fp32      |   177.5 |            45.1 |
+| MPS    | fp32      |    41.3 |           193.9 |
+| MPS    | fp16      |    36.2 |           221.3 |
+
+fp16 on MPS is numerically safe for this model: against the fp32 CPU reference the
+max heatmap deviation is 6e-4 and the argmax (ball position) is identical on every
+output channel. Frames/s counts non-overlapping windows; upstream's optional 8×
+overlap ensembling divides these numbers by 8.
+
 ## Attribution
 
 Model definitions are vendored unmodified from
