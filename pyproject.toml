@@ -8,6 +8,8 @@ requires-python = ">=3.10"
 dependencies = [
     "torch>=2.1",
     "numpy>=1.24",
+    "opencv-python>=4.8",
+    "pillow>=10.0",
 ]
 
 [project.optional-dependencies]
@@ -16,6 +18,7 @@ convert = ["coremltools>=8.0"]
 [project.scripts]
 tracknet-bench = "tracknet_coreml.bench:main"
 tracknet-convert = "tracknet_coreml.convert:main"
+tracknet-track = "tracknet_coreml.track:main"
 
 [build-system]
 requires = ["hatchling"]
