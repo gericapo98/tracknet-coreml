@@ -187,12 +187,9 @@ def track_video(
             if progress:
                 print(f"\rtracknet: {prev_idx + 1}/{info['num_frames']} frames", end="", flush=True)
     else:
-        num_windows = info["num_frames"] - seq_len + 1
-        if num_windows < 1:
-            raise ValueError(
-                f"video has {info['num_frames']} frames, fewer than seq_len={seq_len}; "
-                "use eval_mode='nonoverlap'"
-            )
+        # container metadata may over-report the frame count, so the true number of
+        # windows is discovered from the stream — the count here is display-only
+        approx_windows = max(info["num_frames"] - seq_len + 1, 0)
         windows = iter_windows(video_file, seq_len, 1, tracknet.bg_mode, median, pad_last=False)
 
         def window_preds() -> Iterator[np.ndarray]:
@@ -202,10 +199,10 @@ def track_video(
                 y = tracknet.predict(np.stack(inputs))
                 done += len(batch)
                 if progress:
-                    print(f"\rtracknet: {done}/{num_windows} windows", end="", flush=True)
+                    print(f"\rtracknet: {done}/~{approx_windows} windows", end="", flush=True)
                 yield from y
 
-        for f_i, heatmap in enumerate(ensemble_windows(window_preds(), seq_len, eval_mode, num_windows)):
+        for f_i, heatmap in enumerate(ensemble_windows(window_preds(), seq_len, eval_mode)):
             emit(f_i, *heatmap_to_coord(heatmap, img_scaler))
     if progress:
         print()

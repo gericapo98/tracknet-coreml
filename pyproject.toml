@@ -19,6 +19,7 @@ convert = ["coremltools>=8.0"]
 tracknet-bench = "tracknet_coreml.bench:main"
 tracknet-convert = "tracknet_coreml.convert:main"
 tracknet-track = "tracknet_coreml.track:main"
+tracknet-overlay = "tracknet_coreml.overlay:main"
 
 [build-system]
 requires = ["hatchling"]

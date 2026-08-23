@@ -56,12 +56,14 @@ def ensemble_windows(
     window_preds: Iterator[np.ndarray],
     seq_len: int,
     eval_mode: str,
-    num_windows: int,
+    num_windows: int | None = None,
 ) -> Iterator[np.ndarray]:
     """Streaming temporal ensemble over stride-1 sliding-window predictions.
 
-    Takes num_windows predictions of shape (seq_len, ...) and yields one ensembled
-    prediction of shape (...) per video frame (num_windows + seq_len - 1 of them).
+    Takes stride-1 window predictions of shape (seq_len, ...) and yields one ensembled
+    prediction of shape (...) per video frame (windows + seq_len - 1 of them). The end
+    of the video is discovered from the iterator; num_windows, when given, is only a
+    consistency check (container metadata can over-report frame counts).
     Frame f is the weighted combination of window w's position (f - w) over all
     windows containing f — upstream predict.py's anti-diagonal buffer, with its
     exact divisor conventions: early frames average over the windows seen so far,
@@ -81,7 +83,9 @@ def ensemble_windows(
             yield sum(contributions) / (s + 1)
         else:
             yield sum(w * c for w, c in zip(weight, contributions[::-1]))
-    if s + 1 != num_windows:
+    if s < 0:
+        raise ValueError("no complete windows: video is shorter than seq_len")
+    if num_windows is not None and s + 1 != num_windows:
         raise ValueError(f"expected {num_windows} windows, got {s + 1}")
     # tail frames s+f for f in 1..seq_len-1, averaged over remaining windows
     # (upstream divides by seq_len - f even when fewer windows exist)

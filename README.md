@@ -5,16 +5,19 @@ on Apple Silicon — a Core ML converter, on-device inference, and benchmarks.
 
 TrackNetV3 (and the TrackNet family generally) ships as PyTorch/CUDA code; on a Mac it
 falls back to CPU and full-match videos take tens of minutes to hours. As of August 2026
-no Core ML or MLX port of TrackNetV3 exists. This project closes that gap in stages:
+no Core ML or MLX port of TrackNetV3 exists. This project closes that gap with four tools:
 
-1. **MPS baseline** (done) — load any TrackNetV3-family checkpoint and benchmark it on
-   CPU vs. the Apple GPU (`tracknet-bench`), establishing the number the port must beat.
-2. **Core ML conversion** (done) — `tracknet-convert` exports the TrackNet U-Net and the
+1. **Benchmarking** — `tracknet-bench` runs any TrackNetV3-family checkpoint on CPU or
+   the Apple GPU (MPS) so you can measure throughput on your own machine.
+2. **Core ML conversion** — `tracknet-convert` exports the TrackNet U-Net and the
    InpaintNet rectifier to fp16 `mlprogram` packages targeting the Neural Engine, with a
    built-in parity check against the fp32 PyTorch reference.
-3. **Inference API** — frames in → ball coordinates out, with the heatmap post-processing
-   (threshold, centroid, optional rectification/ensembling) reimplemented host-side, plus
-   parity tests against the PyTorch reference.
+3. **Inference** — `tracknet-track` runs a video through either backend (Core ML or
+   PyTorch) and writes per-frame ball coordinates, with upstream's post-processing
+   (threshold/centroid, nonoverlap or temporal-ensemble modes, optional InpaintNet
+   rectification) reimplemented host-side.
+4. **Overlay** — `tracknet-overlay` renders the tracked trajectory onto the video so you
+   can watch the result and judge the tracking yourself.
 
 Works with any checkpoint in the upstream format (`{'param_dict': ..., 'model': ...}`)
 or a bare state dict — sequence length and background mode are read from the checkpoint,
@@ -34,38 +37,31 @@ tracknet-bench --seq-len 8 --bg-mode concat
 # convert to Core ML (needs the [convert] extra)
 tracknet-convert --ckpt TrackNet_best.pt -o TrackNet.mlpackage
 tracknet-convert --ckpt InpaintNet_best.pt --kind inpaintnet -o InpaintNet.mlpackage
+
+# track a video on the Neural Engine, then watch the result
+tracknet-track rally.mp4 --tracknet TrackNet.mlpackage --inpaintnet InpaintNet.mlpackage
+tracknet-overlay rally.mp4 rally_ball.csv          # writes rally_tracked.mp4
+
+# or run the original checkpoint via PyTorch (cpu/mps) — same pipeline
+tracknet-track rally.mp4 --tracknet TrackNet_best.pt --device mps --fp16
 ```
+
+`tracknet-track` defaults to upstream's max-accuracy stride-1 temporal ensemble
+(`--eval-mode weight`); use `--eval-mode nonoverlap` for the fast single-pass mode.
 
 ```python
 from tracknet_coreml import load_tracknet
+from tracknet_coreml.infer import load_backend, track_video
 
-model, config = load_tracknet("TrackNet_best.pt")   # model.eval(), TrackNetConfig
+model, config = load_tracknet("TrackNet_best.pt")   # torch model.eval(), TrackNetConfig
+
+tracknet = load_backend("TrackNet.mlpackage")        # or a .pt checkpoint
+pred = track_video("rally.mp4", tracknet)            # {'Frame', 'X', 'Y', 'Visibility'}
 ```
 
-## Baseline results
-
-TrackNetV3 badminton checkpoint (`seq_len=8`, `bg_mode='concat'`, 27→8 channels at
-288×512), Apple M4 Pro, torch 2.12.1, batch 1 (the GPU is already saturated at batch 1;
-batches 4/8 measure the same):
-
-| backend | device | precision | ms/pass | output frames/s |
-|---------|--------|-----------|--------:|----------------:|
-| PyTorch | CPU    | fp32      |   177.5 |            45.1 |
-| PyTorch | MPS    | fp32      |    41.3 |           193.9 |
-| PyTorch | MPS    | fp16      |    36.2 |           221.3 |
-| Core ML | CPU only | fp16    |    43.3 |           184.8 |
-| Core ML | CPU+GPU  | fp16    |    31.5 |           253.6 |
-| Core ML | **CPU+ANE** | fp16 |  **14.4** |       **555.3** |
-
-The Neural Engine runs the network 2.5× faster than the Apple GPU and 12× faster than
-PyTorch on CPU — with upstream's optional 8× overlap ensembling enabled it still clears
-~69 fps, i.e. real-time even in max-accuracy mode. fp16 is numerically safe for this
-model: the converted TrackNet's max heatmap deviation vs. the fp32 reference is 3.4e-3
-and the argmax (ball position) is identical on every output channel. Frames/s counts
-non-overlapping windows; 8× ensembling divides these numbers by 8.
-
-Converted with coremltools 9.0. torch 2.13 triggers an "untested version" warning but
-converts and verifies cleanly; pin `torch<=2.7` if you hit converter issues.
+Conversion note: torch versions newer than coremltools' tested range trigger an
+"untested version" warning but generally convert fine; pin `torch<=2.7` if you hit
+converter issues.
 
 ## Attribution
 
