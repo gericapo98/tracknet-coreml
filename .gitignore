@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# model artifacts — distributed via releases, not the repo
+*.pt
+*.pth
+*.mlpackage/
+*.mlmodelc/
+
+.DS_Store
